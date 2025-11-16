@@ -1,0 +1,19 @@
+{
+    "TableName": "blocked_words",
+    "AttributeDefinitions": [
+        {
+            "AttributeName": "word",
+            "AttributeType": "S"
+        }
+    ],
+    "KeySchema": [
+        {
+            "AttributeName": "word",
+            "KeyType": "HASH"
+        }
+    ],
+    "ProvisionedThroughput": {
+        "ReadCapacityUnits": 1,
+        "WriteCapacityUnits": 1
+    }
+}

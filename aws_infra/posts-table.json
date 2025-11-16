@@ -1,0 +1,27 @@
+{
+    "TableName": "posts",
+    "AttributeDefinitions": [
+        {
+            "AttributeName": "user_id",
+            "AttributeType": "S"
+        },
+        {
+            "AttributeName": "post_id",
+            "AttributeType": "S"
+        }
+    ],
+    "KeySchema": [
+        {
+            "AttributeName": "user_id",
+            "KeyType": "HASH"
+        },
+        {
+            "AttributeName": "post_id",
+            "KeyType": "RANGE"
+        }
+    ],
+    "ProvisionedThroughput": {
+        "ReadCapacityUnits": 1,
+        "WriteCapacityUnits": 1
+    }
+}

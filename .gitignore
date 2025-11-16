@@ -1,0 +1,28 @@
+# Python/Django
+__pycache__/
+*.pyc
+*.log
+*.pot
+*.mo
+.DS_Store
+
+# Environment
+.env
+venv/
+
+# Local Database
+db.sqlite3
+
+# SSL Certificates & Keys (CRITICAL)
+*.crt
+*.key
+*.pem
+
+# Temporary Files
+temp_images/
+back_end_django_apps.zip
+test.py
+
+# IDE files
+.idea/
+.vscode/
