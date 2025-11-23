@@ -11,13 +11,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-&)pt3d)j$yj8kyu3!*v+0=+i%8nlft05r49n&n!^xst(fzs8pf'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = [
     '127.0.0.1',
     'localhost',
     'morphotic-squally-jericho.ngrok-free.dev',
-    'morphotic-squally-jericho.ngrok-free.app'
+    'morphotic-squally-jericho.ngrok-free.app',
+    '18.224.202.124',
+    'ec2-18-224-202-124.us-east-2.compute.amazonaws.com',
+    'speakupsurrey-app.s3-website.us-east-2.amazonaws.com',
+    'loudsurrey.online',
+    'www.loudsurrey.online'
 ]
 
 # Application definition
@@ -61,14 +66,21 @@ MIDDLEWARE = [
 
 # CORRECTED: Using a specific whitelist is more secure than allowing all origins.
 CORS_ALLOWED_ORIGINS = [
-    "https://localhost:5173",    # <--- Change to https
-    "https://127.0.0.1:5173",  # <--- Change to https
+    "https://localhost:5173",
+    "https://127.0.0.1:5173", 
+    "http://speakupsurrey-app.s3-website.us-east-2.amazonaws.com"
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://localhost:5173",    # <--- Change to https
-    "https://127.0.0.1:5173",  # <--- Change to https
+    "https://localhost:5173" 
+    "https://127.0.0.1:5173", 
+    "http://speakupsurrey-app.s3-website.us-east-2.amazonaws.com",
+    'https://loudsurrey.online',
+    'https://www.loudsurrey.online'
 ]
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 # This line is commented out because CORS_ALLOWED_ORIGINS is safer.
 # CORS_ALLOW_ALL_ORIGINS = True
 
@@ -76,10 +88,10 @@ CSRF_TRUSTED_ORIGINS = [
 CORS_ALLOW_CREDENTIALS = True
 
 # For cross-site API calls, SameSite must be 'None'.
-SESSION_COOKIE_SAMESITE = 'None' # <--- Change to 'None'
-CSRF_COOKIE_SAMESITE = 'None'    # <--- Change to 'None'
-SESSION_COOKIE_SECURE = True     # <--- Change to True
-CSRF_COOKIE_SECURE = True        # <--- Change to True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 
 ROOT_URLCONF = 'sbe.urls'
 
@@ -144,10 +156,10 @@ REST_FRAMEWORK = {
 
 # --- CELERY CONFIGURATION ---
 # This is the URL of your message broker (the 'in-tray').
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
 
 # This is the backend where Celery stores the results of tasks.
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
 
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
@@ -163,6 +175,7 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

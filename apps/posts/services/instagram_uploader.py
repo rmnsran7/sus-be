@@ -3,14 +3,14 @@
 import requests
 from django.conf import settings
 
-def publish_to_instagram(image_url, caption):
+def _test_publish_to_instagram(image_url, caption):
     # Dummy function to simulate success without real API calls
     print(f"Simulated upload to Instagram with image_url='{image_url}' and caption='{caption}'")
     dummy_media_id = "1234567890_dummy_media_id"
     print(f"Successfully 'published' post with media ID: {dummy_media_id}")
     return dummy_media_id
     
-def _real_publish_to_instagram(image_url, caption):
+def publish_to_instagram(image_url, caption):
     # Step 1: Create media container
     container_url = f"https://graph.facebook.com/{settings.GRAPH_API_VERSION}/{settings.INSTAGRAM_BUSINESS_ACCOUNT_ID}/media"
     container_payload = {'image_url': image_url, 'caption': caption, 'access_token': settings.ACCESS_TOKEN}
