@@ -1,5 +1,6 @@
 # apps/posts/tasks.py
 
+import re 
 from celery import shared_task
 from django.utils import timezone
 from .models import Post, PostImage
@@ -13,7 +14,6 @@ def process_and_publish_post(post_id):
     except Post.DoesNotExist:
         return
 
-    # ... (Image Generation and S3 Upload logic remains the same) ...
     print(f"Generating image for Post #{post.post_number}...")
     image_file = create_post_image(
         post_number=post.post_number,
@@ -22,32 +22,43 @@ def process_and_publish_post(post_id):
         short_date=timezone.now().strftime("%d %b"),
         title=post.user.name.lower().replace(" ", "")
     )
-    
-    if not image_file:
-        post.status = Post.PostStatus.FAILED
-        post.save()
-        return
 
+    if not image_file:
+        post.status = Post.PostStatus.FAILED; post.save(); return
+
+    print(f"Uploading image to S3 for Post #{post.post_number}...")
     image_url = s3_uploader.upload_file_to_s3(image_file, file_type='png')
+    
     if not image_url:
-        post.status = Post.PostStatus.FAILED
-        post.save()
-        return
+        post.status = Post.PostStatus.FAILED; post.save(); return
 
     PostImage.objects.create(post=post, image_url=image_url, is_text_image=True)
 
-    # --- UPDATED PUBLISHING LOGIC ---
     print(f"Publishing to Instagram for Post #{post.post_number}...")
-    caption = f"Post #{post.text_content} by {post.user.name}\n\nShared anonymously on SpeakUpSurrey.\nDisclaimer: We did not create this content and are not responsible for any resulting harm."
-    
-    # Call the updated service
+
+    # --- 1. SANITIZE CONTENT (Remove @mentions, keep emails) ---
+    # Regex explanation:
+    # (?<!\S) -> Negative lookbehind: Ensure previous char is NOT a non-whitespace (must be space or start of line)
+    # @       -> Match literal '@'
+    # \w+     -> Match one or more word characters (letters, numbers, underscore)
+    clean_text = re.sub(r'(?<!\S)@\w+', '[mention removed]', post.text_content)
+
+    # --- 2. FORMAT NICE CAPTION ---
+    caption = (
+        f"📢 Post #{post.post_number}\n\n"
+        f"{clean_text}\n\n"
+        f"👤 Submitted by: {post.user.name}\n\n"
+        f"Shared anonymously on LoudSurrey.\n"
+        f"⚠️ Disclaimer: We did not create this content and are not responsible for any resulting harm."
+    )
+
+    # Call the updated service (make sure your uploader is the polling version we just built)
     result = instagram_uploader.publish_to_instagram(image_url, caption)
     
     if result['success']:
         post.status = Post.PostStatus.POSTED
         post.instagram_media_id = result['media_id']
         post.posted_at = timezone.now()
-        # Clear previous errors if successful retry
         post.meta_api_error = None
         post.meta_api_status = 200
         post.save()
