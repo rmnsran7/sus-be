@@ -58,6 +58,17 @@ class Post(models.Model):
         blank=True,
         help_text="The media ID returned by the Instagram API upon successful posting."
     )
+
+    meta_api_status = models.PositiveIntegerField(
+        null=True, 
+        blank=True, 
+        help_text="HTTP Status Code returned by the Meta API (e.g. 400, 500)."
+    )
+    meta_api_error = models.JSONField(
+        null=True, 
+        blank=True, 
+        help_text="Full JSON error response from Meta Graph API for debugging."
+    )
     
     created_at = models.DateTimeField(auto_now_add=True)
     posted_at = models.DateTimeField(

@@ -61,6 +61,13 @@ class GlobalSettings(SingletonModel):
         help_text="Cost to post immediately when the queue is active."
     )
 
+    instagram_access_token = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="The 'Never-Expiring' Page Access Token for Instagram/Facebook API."
+    )
+
     class Meta:
         verbose_name = "Global Settings"
         verbose_name_plural = "Global Settings"
