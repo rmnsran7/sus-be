@@ -50,6 +50,7 @@ def process_and_publish_post(post_id):
         f"👤 Submitted by: {post.user.name}\n\n"
         f"Shared anonymously on LoudSurrey.\n"
         f"⚠️ Disclaimer: We did not create this content and are not responsible for any resulting harm."
+        f"\n\n #surreybc #newtonsurrey #surreycentral #strawberryhill #punjabiincanada #surreypind #internationalstudents #kpu #gediroute #surreylife #surreywale"
     )
 
     # Call the updated service (make sure your uploader is the polling version we just built)
