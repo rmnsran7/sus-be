@@ -34,10 +34,6 @@ class InstagramPostGenerator:
         self.image = Image.new('RGB', (self.WIDTH, self.HEIGHT), color=self.BG_COLOR)
         self.draw = ImageDraw.Draw(self.image)
 
-    def get_clean_message(self):
-        """Returns the message without any formatting tags, useful for saving to DB."""
-        return self.clean_message
-
     def _validate_color(self, color_string: str, param_name: str):
         if not isinstance(color_string, str) or not re.match(r'^#(?:[A-Fa-f0-9]{3}){1,2}$', color_string):
             raise InvalidParameterError(f"Parameter '{param_name}' has an invalid hex color format: '{color_string}'")
@@ -110,16 +106,11 @@ class InstagramPostGenerator:
     # --- Rich Text Parsing & Wrapping ---
 
     def _parse_rich_text(self, text, default_size, default_color):
-        """
-        Parses text with tags <b>, <c:#HEX>, <s:INT> into segments.
-        Returns a list of dicts: {'text': str, 'bold': bool, 'color': str, 'size': int}
-        """
-        # Regex to capture tags
+        """Parses text with tags <b>, <c:#HEX>, <s:INT> into segments."""
         tag_pattern = re.compile(r'(<b>|</b>|<c:#[0-9a-fA-F]+>|</c>|<s:\d+>|</s>)')
         parts = tag_pattern.split(text)
         
         segments = []
-        # Stack allows for nested tags (e.g., <c:red><b>Bold Red</b></c>)
         style_stack = [{'bold': False, 'color': default_color, 'size': default_size}]
         
         for part in parts:
@@ -133,14 +124,11 @@ class InstagramPostGenerator:
             elif lower_part == '</b>':
                 if len(style_stack) > 1: style_stack.pop()
             elif lower_part.startswith('<c:'):
-                color = part[3:-1] # Extract #HEX
-                if self._is_valid_color(color):
+                color = part[3:-1] 
+                if self._validate_color_format(color):
                     new_style = style_stack[-1].copy()
                     new_style['color'] = color
                     style_stack.append(new_style)
-                else:
-                    # Treat invalid tag as text or ignore? Let's ignore invalid color tags for safety
-                    pass
             elif lower_part == '</c>':
                  if len(style_stack) > 1: style_stack.pop()
             elif lower_part.startswith('<s:'):
@@ -153,7 +141,6 @@ class InstagramPostGenerator:
             elif lower_part == '</s>':
                  if len(style_stack) > 1: style_stack.pop()
             else:
-                # This is actual text content
                 style = style_stack[-1]
                 segments.append({
                     'text': part,
@@ -163,13 +150,13 @@ class InstagramPostGenerator:
                 })
         return segments
 
-    def _is_valid_color(self, color):
+    def _validate_color_format(self, color):
          return isinstance(color, str) and re.match(r'^#(?:[A-Fa-f0-9]{3}){1,2}$', color)
 
     def _wrap_rich_text(self, segments, max_width):
         """
         Wraps parsed segments into lines based on width.
-        Returns a list of lines, where each line is a list of segments.
+        Crucially handles explicit newlines ('\n') in text by forcing a line break.
         """
         lines = []
         current_line = []
@@ -177,42 +164,42 @@ class InstagramPostGenerator:
         
         for seg in segments:
             font = self._get_font(seg['size'])
-            words = seg['text'].split(' ')
             
-            for i, word in enumerate(words):
-                # Add space back to word unless it's the last word in the segment
-                # and the segment wasn't ending with a space in original text (simplified here)
-                # Simpler approach: Re-add space if not last, or if it was present.
-                # Standard split loses delimiters. We assume single spaces.
+            # 1. Split by explicit newlines first
+            # "Hello\nWorld" -> ["Hello", "\n", "World"]
+            parts = re.split(r'(\n)', seg['text'])
+            
+            for part in parts:
+                if part == '\n':
+                    # Force commit of current line and start a new one (even if empty)
+                    lines.append(current_line)
+                    current_line = []
+                    current_width = 0
+                    continue
                 
-                word_text = word
-                # If not the very last word of segment, add space. 
-                # (Note: This simple logic might eat multiple spaces, but suffices for standard text)
-                if i < len(words) - 1:
-                    word_text += " "
-                
-                # Calculate width of this word/chunk
-                # Bold simulation increases width slightly (stroke_width=1 adds ~2px per char roughly)
-                # But getlength doesn't account for stroke. We add a buffer if bold.
-                word_w = self.draw.textlength(word_text, font=font)
-                if seg['bold']:
-                    word_w += len(word_text) * 0.5 # Slight buffer for fake bold
-                
-                if current_width + word_w <= max_width:
-                    current_line.append({**seg, 'text': word_text})
-                    current_width += word_w
-                else:
-                    # Wrap to new line
-                    if current_line:
-                        lines.append(current_line)
+                # 2. Process words within this line-segment
+                words = part.split(' ')
+                for i, word in enumerate(words):
+                    word_text = word
                     
-                    # Reset
-                    current_line = [{**seg, 'text': word_text}]
-                    current_width = word_w
+                    # Add space if it's not the last word in this part
+                    if i < len(words) - 1:
+                        word_text += " "
                     
-                    # Handle case where a single word is wider than max_width (Character wrap fallback)
-                    # For rich text, this is complex. We'll skip complex char-wrap for styled text 
-                    # for now to keep it stable, or let it overflow slightly.
+                    if not word_text: continue
+
+                    word_w = self.draw.textlength(word_text, font=font)
+                    if seg['bold']:
+                        word_w += len(word_text) * 0.5 # Bold buffer
+                    
+                    if current_width + word_w <= max_width:
+                        current_line.append({**seg, 'text': word_text})
+                        current_width += word_w
+                    else:
+                        if current_line:
+                            lines.append(current_line)
+                        current_line = [{**seg, 'text': word_text}]
+                        current_width = word_w
                     
         if current_line:
             lines.append(current_line)
@@ -234,7 +221,6 @@ class InstagramPostGenerator:
         av_f = ImageFont.truetype(self.font_path, 50)
         u_f = ImageFont.truetype(self.font_path, 36)
         
-        # Calculate dynamic size for default text
         default_font_size = self._get_dynamic_font_size()
         
         bub_x = px + av_s + sp_x
@@ -244,30 +230,36 @@ class InstagramPostGenerator:
         segments = self._parse_rich_text(self.message, default_font_size, self.MESSAGE_TEXT_COLOR)
         wrapped_lines = self._wrap_rich_text(segments, max_tw)
         
-        # 2. Calculate total height of the message block
+        # 2. Calculate total height
         line_spacing = 15
         total_text_height = 0
         line_heights = []
         
         for line in wrapped_lines:
-            # Find max height in this line (based on font size)
-            max_h = 0
-            for seg in line:
-                font = self._get_font(seg['size'])
+            # If line is empty (explicit newline), use default font height
+            if not line:
+                font = self._get_font(default_font_size)
                 ascent, descent = font.getmetrics()
-                max_h = max(max_h, ascent + descent)
-            line_heights.append(max_h)
-            total_text_height += max_h
+                h = ascent + descent
+                line_heights.append(h)
+                total_text_height += h
+            else:
+                max_h = 0
+                for seg in line:
+                    font = self._get_font(seg['size'])
+                    ascent, descent = font.getmetrics()
+                    max_h = max(max_h, ascent + descent)
+                line_heights.append(max_h)
+                total_text_height += max_h
             
         if len(line_heights) > 0:
             total_text_height += (len(line_heights) - 1) * line_spacing
 
-        bub_w = max_tw + (bub_p * 2) # Use max width for bubble for consistency, or calculate actual max line width
+        bub_w = max_tw + (bub_p * 2)
         bub_h = total_text_height + (bub_p * 2)
         u_h = sum(u_f.getmetrics())
         total_group_h = u_h + sp_y + bub_h
         
-        # Center the group vertically in the body area
         group_y = self.HEADER_HEIGHT + (self.HEIGHT - self.HEADER_HEIGHT - total_group_h) // 2
         
         # Draw Avatar
@@ -286,15 +278,11 @@ class InstagramPostGenerator:
         # 3. Draw Rich Text Lines
         current_y = bub_y + bub_p
         for i, line in enumerate(wrapped_lines):
-            current_x = bub_x + bub_p
             line_h = line_heights[i]
-            
-            # Align text to bottom of the line height (baseline) to handle mixed font sizes cleanly
-            # Or simplified: align top. Let's align top for simplicity, valid for similar scripts.
+            current_x = bub_x + bub_p
             
             for seg in line:
                 font = self._get_font(seg['size'])
-                # Fake bold using stroke_width if bold is requested
                 stroke_w = 1 if seg['bold'] else 0
                 
                 self.draw.text(
@@ -305,8 +293,6 @@ class InstagramPostGenerator:
                     stroke_width=stroke_w,
                     stroke_fill=seg['color']
                 )
-                
-                # Advance X
                 seg_w = self.draw.textlength(seg['text'], font=font)
                 current_x += seg_w
             
@@ -318,7 +304,6 @@ class InstagramPostGenerator:
         inset, inner_radius = self.border_width, max(0, self.border_radius - self.border_width)
         ImageDraw.Draw(mask).rounded_rectangle((inset, inset, self.WIDTH - inset, self.HEIGHT - inset), radius=inner_radius, fill=255)
         final_image.paste(content_image, (0, 0), mask)
-        
         outer_mask = Image.new('L', (self.WIDTH, self.HEIGHT), 0)
         ImageDraw.Draw(outer_mask).rounded_rectangle((0, 0, self.WIDTH, self.HEIGHT), radius=self.border_radius, fill=255)
         final_image.putalpha(outer_mask)
