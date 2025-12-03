@@ -8,45 +8,57 @@ from .services.image_generator import create_post_image
 from .services import s3_uploader, instagram_uploader
 
 @shared_task
-def process_and_publish_post(post_id, raw_content=None): # --- NEW ARGUMENT ---
+def process_and_publish_post(post_id, raw_content=None):
     try:
         post = Post.objects.get(id=post_id)
     except Post.DoesNotExist:
         return
 
-    print(f"Generating image for Post #{post.post_number}...")
-    
-    # --- USE RAW CONTENT FOR IMAGE IF AVAILABLE, ELSE DB CONTENT ---
-    # This allows us to use tags for the image even though they aren't in the DB
-    message_for_image = raw_content if raw_content else post.text_content
+    # --- 1. CHECK FOR EXISTING IMAGE (Smart Retry) ---
+    # If we are retrying a failed post, the image might already exist.
+    # We should reuse it to preserve formatting (tags) that aren't stored in the DB.
+    existing_image = PostImage.objects.filter(post=post, is_text_image=True).first()
+    image_url = None
 
-    image_file = create_post_image(
-        post_number=post.post_number,
-        username=post.user.name,
-        message=message_for_image, 
-        short_date=timezone.now().strftime("%d %b"),
-        title=post.user.name.lower().replace(" ", "")
-    )
+    if existing_image:
+        print(f"Found existing image for Post #{post.post_number}. Skipping generation.")
+        image_url = existing_image.image_url
+    else:
+        print(f"Generating image for Post #{post.post_number}...")
+        
+        # Use raw_content (with tags) if available, otherwise fallback to clean DB content
+        message_for_image = raw_content if raw_content else post.text_content
 
-    if not image_file:
-        post.status = Post.PostStatus.FAILED; post.save(); return
+        image_file = create_post_image(
+            post_number=post.post_number,
+            username=post.user.name,
+            message=message_for_image,
+            short_date=timezone.now().strftime("%d %b"),
+            title=post.user.name.lower().replace(" ", "")
+        )
 
-    print(f"Uploading image to S3 for Post #{post.post_number}...")
-    image_url = s3_uploader.upload_file_to_s3(image_file, file_type='png')
-    
-    if not image_url:
-        post.status = Post.PostStatus.FAILED; post.save(); return
+        if not image_file:
+            post.status = Post.PostStatus.FAILED
+            post.save()
+            return
 
-    PostImage.objects.create(post=post, image_url=image_url, is_text_image=True)
+        print(f"Uploading image to S3 for Post #{post.post_number}...")
+        image_url = s3_uploader.upload_file_to_s3(image_file, file_type='png')
+        
+        if not image_url:
+            post.status = Post.PostStatus.FAILED
+            post.save()
+            return
 
+        # Create the PostImage record so we don't regenerate it next time
+        PostImage.objects.create(post=post, image_url=image_url, is_text_image=True)
+
+    # --- 2. PUBLISH TO INSTAGRAM ---
     print(f"Publishing to Instagram for Post #{post.post_number}...")
 
-    # --- 1. SANITIZE CONTENT FOR CAPTION ---
-    # post.text_content is already stripped of tags (from views.py).
-    # We just run the mention remover on the clean text.
-    clean_text = re.sub(r'(?<!\S)@\w+', '[mention removed]', post.text_content)
+    # Sanitize content for the caption (remove @mentions)
+    clean_text = re.sub(r'(?<!\S)@\w+', ' ', post.text_content)
 
-    # --- 2. FORMAT CAPTION ---
     caption = (
         f"📢 Post #{post.post_number}\n\n"
         f"{clean_text}\n\n"
