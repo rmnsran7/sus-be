@@ -8,17 +8,22 @@ from .services.image_generator import create_post_image
 from .services import s3_uploader, instagram_uploader
 
 @shared_task
-def process_and_publish_post(post_id):
+def process_and_publish_post(post_id, raw_content=None): # --- NEW ARGUMENT ---
     try:
         post = Post.objects.get(id=post_id)
     except Post.DoesNotExist:
         return
 
     print(f"Generating image for Post #{post.post_number}...")
+    
+    # --- USE RAW CONTENT FOR IMAGE IF AVAILABLE, ELSE DB CONTENT ---
+    # This allows us to use tags for the image even though they aren't in the DB
+    message_for_image = raw_content if raw_content else post.text_content
+
     image_file = create_post_image(
         post_number=post.post_number,
         username=post.user.name,
-        message=post.text_content,
+        message=message_for_image, 
         short_date=timezone.now().strftime("%d %b"),
         title=post.user.name.lower().replace(" ", "")
     )
@@ -36,14 +41,12 @@ def process_and_publish_post(post_id):
 
     print(f"Publishing to Instagram for Post #{post.post_number}...")
 
-    # --- 1. SANITIZE CONTENT (Remove @mentions, keep emails) ---
-    # Regex explanation:
-    # (?<!\S) -> Negative lookbehind: Ensure previous char is NOT a non-whitespace (must be space or start of line)
-    # @       -> Match literal '@'
-    # \w+     -> Match one or more word characters (letters, numbers, underscore)
+    # --- 1. SANITIZE CONTENT FOR CAPTION ---
+    # post.text_content is already stripped of tags (from views.py).
+    # We just run the mention remover on the clean text.
     clean_text = re.sub(r'(?<!\S)@\w+', '[mention removed]', post.text_content)
 
-    # --- 2. FORMAT NICE CAPTION ---
+    # --- 2. FORMAT CAPTION ---
     caption = (
         f"📢 Post #{post.post_number}\n\n"
         f"{clean_text}\n\n"
@@ -53,7 +56,6 @@ def process_and_publish_post(post_id):
         f"\n\n #surreybc #newtonsurrey #surreycentral #strawberryhill #punjabiincanada #surreypind #internationalstudents #kpu #gediroute #surreylife #surreywale"
     )
 
-    # Call the updated service (make sure your uploader is the polling version we just built)
     result = instagram_uploader.publish_to_instagram(image_url, caption)
     
     if result['success']:
