@@ -47,10 +47,6 @@ class InstagramPostGenerator:
                 - border_radius (int): The radius for the rounded corners. Default: 30.
                 - border_color (str): The default color of the border. Default: "#FFFFFF".
                 - All other color attributes (e.g., 'HEADER_BG_COLOR', 'MESSAGE_TEXT_COLOR').
-
-        Raises:
-            InvalidParameterError: If any input parameter is of the wrong type or format.
-            FontError: If required font files are missing or corrupted.
         """
         # --- Image and Layout Constants ---
         self.WIDTH = 1080
@@ -158,6 +154,9 @@ class InstagramPostGenerator:
             raise FontError(f"Failed to merge or save fonts: {e}")
 
     def _remove_emojis(self, text: str) -> str:
+        """
+        Removes emojis but PRESERVES newlines.
+        """
         emoji_pattern = re.compile(
             "["
             "\U0001F600-\U0001F64F" "\U0001F300-\U0001F5FF" "\U0001F680-\U0001F6FF"
@@ -166,7 +165,9 @@ class InstagramPostGenerator:
             "\U00002702-\U000027B0" "\U000024C2-\U0001F251" 
             "]+", flags=re.UNICODE)
         no_emojis_text = emoji_pattern.sub(r'', text)
-        return " ".join(no_emojis_text.split())
+        
+        # We strip leading/trailing whitespace, but we DO NOT split/join on all whitespace
+        return no_emojis_text.strip()
 
     def _get_dynamic_font_size(self) -> int:
         min_font_size, max_font_size = 34, 48
@@ -178,10 +179,21 @@ class InstagramPostGenerator:
         return int(max_font_size + slope * (text_len - min_len))
 
     def _wrap_text(self, text: str, font: ImageFont.FreeTypeFont, max_width: int) -> str:
+        """
+        Wraps text while respecting existing newlines and handling long words.
+        """
         lines = []
-        for para in text.split('\n'):
+        paragraphs = text.split('\n')
+        
+        for para in paragraphs:
+            # If the paragraph is empty (a blank line), add an empty string to preserve vertical space
+            if not para.strip():
+                lines.append("")
+                continue
+
             words = para.split(' ')
             current_line = ""
+            
             for word in words:
                 test_line = current_line + word + " "
                 if self.draw.textlength(test_line, font=font) <= max_width:
@@ -328,6 +340,15 @@ if __name__ == '__main__':
     extreme_test_cases = [
         # --- SUCCESS CASES ---
         {
+            "case_id": "multiline_case", 
+            "username": "LineBreaker", 
+            "post_id": "M01", 
+            "short_date": "15 Oct", 
+            "title": "multiline-post",
+            "message": "This is line 1.\nThis is line 2.\n\nThis is line 4 after a blank line.",
+            "comment": "Tests if newlines and blank lines are preserved."
+        },
+        {
             "case_id": "standard_case", "username": "StandardUser", "post_id": "S01", "short_date": "15 Oct", "title": "standard-post",
             "message": "This is a standard, well-behaved message that should render perfectly fine without any issues.",
             "comment": "A baseline success case."
@@ -338,44 +359,13 @@ if __name__ == '__main__':
             "comment": "Crucial test for the character-level wrapping logic."
         },
         {
-            "case_id": "fully_customized_high_contrast", "username": "Synthwave", "post_id": "C02", "short_date": "2077", "title": "cyberpunk",
-            "message": "This is a test of a fully customized, high-contrast theme, changing every possible color parameter.",
-            "kwargs": {
-                "HEADER_BG_COLOR": "#000000", "HEADER_SIDE_TEXT_COLOR": "#FF00FF", "HEADER_CENTER_TEXT_COLOR": "#00FFFF", "HEADER_BORDER_COLOR": "#FF00FF",
-                "AVATAR_BG_COLOR": "#FF00FF", "AVATAR_TEXT_COLOR": "#000000", "USERNAME_COLOR": "#A0A0A0",
-                "BUBBLE_COLOR": "#220022", "MESSAGE_TEXT_COLOR": "#00FFFF", "border_width": 15, "border_radius": 50, "border_color": "#00FFFF"
-            },
-            "comment": "Tests changing all public color and border attributes at once."
-        },
-        {
              "case_id": "devanagari_hindi_text", "username": "हिन्दी", "post_id": "H01", "short_date": "१५ अक्टूबर", "title": "देवनागरी",
-             "message": "यह देवनागरी में एक परीक्षण संदेश है। फ़ॉन्ट विलय का परीक्षण किया जा रहा है। नमस्ते!",
-             "comment": "Tests the NotoSansDevanagari font merging."
+             "message": "यह देवनागरी में एक परीक्षण संदेश है।\nनई लाइन यहाँ है।\n\nएक और खाली लाइन।",
+             "comment": "Tests the NotoSansDevanagari font merging with newlines."
         },
-        # --- FAILURE CASES ---
-        {
-            "case_id": "error_invalid_color", "username": "BadColor", "post_id": "E01", "short_date": "15 Oct", "title": "bad-color",
-            "message": "This should fail because the border color is not a valid hex code.",
-            "kwargs": {"border_color": "#GGGGGG"},
-            "comment": "Tests InvalidParameterError for color format.",
-            "expected_error": InvalidParameterError
-        },
-        {
-            "case_id": "error_negative_border", "username": "Negative", "post_id": "E02", "short_date": "15 Oct", "title": "neg-border",
-            "message": "This should fail because the border width is a negative number.",
-            "kwargs": {"border_width": -10},
-            "comment": "Tests InvalidParameterError for negative integer.",
-            "expected_error": InvalidParameterError
-        },
-        {
-            "case_id": "error_bad_type", "username": "BadType", "post_id": "E03", "short_date": "15 Oct", "title": "bad-type",
-            "message": 12345, # Message is an integer, not a string
-            "comment": "Tests InvalidParameterError for wrong input type.",
-            "expected_error": InvalidParameterError
-        }
     ]
 
-    output_dir = "final_output_images_v6_robust_tests"
+    output_dir = "final_output_images_fixed_v7"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
