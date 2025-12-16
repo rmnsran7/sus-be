@@ -54,7 +54,7 @@ class InstagramPostGenerator:
             raise InvalidParameterError("All text inputs (username, post_id, etc.) must be strings.")
         self.username, self.post_id, self.short_date, self.title = username, f"#{post_id}", short_date, f"@{title}"
         
-        # Remove emojis but keep tags intact
+        # Remove emojis but keep tags AND NEWLINES intact
         cleaned_message = self._remove_emojis(message)
         
         # Truncate if extremely long, but be generous to accommodate tags
@@ -73,6 +73,7 @@ class InstagramPostGenerator:
         if os.path.exists(merged_font_path): return merged_font_path
         
         print("Merged font not found. Creating one...")
+        # Ensure these files exist in your assets/fonts directory
         font_paths = [os.path.join(font_dir, f) for f in ["NotoSans-Regular.ttf", "NotoSansGurmukhi-Regular.ttf", "NotoSansDevanagari-Regular.ttf"]]
         try:
             for path in font_paths:
@@ -85,8 +86,12 @@ class InstagramPostGenerator:
         except Exception as e: raise FontError(f"Failed to merge or save fonts: {e}")
 
     def _remove_emojis(self, text: str) -> str:
+        """
+        Removes emojis from the text but preserves whitespace and newlines.
+        """
         emoji_pattern = re.compile("[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F700-\U0001FAFF\U00002702-\U000027B0\U000024C2-\U0001F251]+", flags=re.UNICODE)
-        return " ".join(emoji_pattern.sub(r'', text).split())
+        # FIX: Just use sub(), do not use split() which eats newlines
+        return emoji_pattern.sub(r'', text)
 
     def _get_dynamic_font_size(self) -> int:
         # Calculate font size based on the CLEAN message length, ignoring tags
@@ -178,6 +183,8 @@ class InstagramPostGenerator:
                     continue
                 
                 # 2. Process words within this line-segment
+                # NOTE: We use split(' ') here to break words but keep empty strings 
+                # to respect multiple spaces if necessary, though typical wrapping consumes them.
                 words = part.split(' ')
                 for i, word in enumerate(words):
                     word_text = word
@@ -196,8 +203,10 @@ class InstagramPostGenerator:
                         current_line.append({**seg, 'text': word_text})
                         current_width += word_w
                     else:
+                        # Flush current line
                         if current_line:
                             lines.append(current_line)
+                        # Start new line with current word
                         current_line = [{**seg, 'text': word_text}]
                         current_width = word_w
                     
