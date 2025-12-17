@@ -14,9 +14,22 @@ def process_and_publish_post(post_id, raw_content=None):
     except Post.DoesNotExist:
         return
 
+    # --- 0. SCHEDULING CHECK ---
+    # If the post is SCHEDULED, we ensure it's actually time to post.
+    if post.status == Post.PostStatus.SCHEDULED:
+        if not post.scheduled_time:
+            # Invalid state: Scheduled but no time.
+            return
+        
+        # If the scheduled time is still in the future (e.g. user rescheduled it), 
+        # we skip this specific task execution. The new task (with new ETA) will handle it.
+        # We add a small buffer (e.g. 10 seconds) to account for slight server time drifts.
+        time_diff = post.scheduled_time - timezone.now()
+        if time_diff.total_seconds() > 30:
+            print(f"Skipping Post #{post.post_number}: Scheduled for {post.scheduled_time}, but task ran too early.")
+            return
+
     # --- 1. CHECK FOR EXISTING IMAGE (Smart Retry) ---
-    # If we are retrying a failed post, the image might already exist.
-    # We should reuse it to preserve formatting (tags) that aren't stored in the DB.
     existing_image = PostImage.objects.filter(post=post, is_text_image=True).first()
     image_url = None
 
@@ -26,7 +39,6 @@ def process_and_publish_post(post_id, raw_content=None):
     else:
         print(f"Generating image for Post #{post.post_number}...")
         
-        # Use raw_content (with tags) if available, otherwise fallback to clean DB content
         message_for_image = raw_content if raw_content else post.text_content
 
         image_file = create_post_image(
@@ -50,13 +62,11 @@ def process_and_publish_post(post_id, raw_content=None):
             post.save()
             return
 
-        # Create the PostImage record so we don't regenerate it next time
         PostImage.objects.create(post=post, image_url=image_url, is_text_image=True)
 
     # --- 2. PUBLISH TO INSTAGRAM ---
     print(f"Publishing to Instagram for Post #{post.post_number}...")
 
-    # Sanitize content for the caption (remove @mentions)
     clean_text = re.sub(r'(?<!\S)@\w+', ' ', post.text_content)
 
     caption = (

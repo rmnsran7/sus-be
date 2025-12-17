@@ -8,6 +8,7 @@ class Post(models.Model):
     class PostStatus(models.TextChoices):
         AWAITING_PAYMENT = 'AWAITING_PAYMENT', 'Awaiting Payment'
         PENDING_MODERATION = 'PENDING_MODERATION', 'Pending Moderation'
+        SCHEDULED = 'SCHEDULED', 'Scheduled'  # <--- NEW STATUS
         PROCESSING = 'PROCESSING', 'Processing'
         POSTED = 'POSTED', 'Posted'
         FAILED = 'FAILED', 'Failed'
@@ -28,29 +29,35 @@ class Post(models.Model):
         db_index=True
     )
     
-    # --- NEW FIELD ADDED HERE ---
+    # --- NEW FIELD FOR SCHEDULING ---
+    scheduled_time = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Leave empty to POST NOW. Set a future date/time to SCHEDULE."
+    )
+    
     is_promotional = models.BooleanField(
         default=False, 
         db_index=True,
         help_text="Set to True if the LLM analysis identifies the post as promotional."
     )
 
-    # NEW: Field to store the raw JSON response from the LLM
     llm_moderation_response = models.JSONField(
         null=True,
         blank=True,
         help_text="The raw JSON response from the LLM moderation analysis."
     )
 
-    # NEW: Field to store why a post was flagged
     moderation_reason = models.CharField(
         max_length=255,
         blank=True,
         help_text="The reason this post was flagged (e.g., Blocked Word, LLM Harmful)."
     )
     
-    submission_ip = models.GenericIPAddressField()
-    submission_user_agent = models.CharField(max_length=255)
+    # Making these optional so Admin creation doesn't fail
+    submission_ip = models.GenericIPAddressField(null=True, blank=True)
+    submission_user_agent = models.CharField(max_length=255, null=True, blank=True)
     
     instagram_media_id = models.CharField(
         max_length=100,
