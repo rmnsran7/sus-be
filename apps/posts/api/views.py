@@ -120,5 +120,5 @@ class RecentPostsListView(generics.ListAPIView):
     serializer_class = PostListSerializer
     pagination_class = StandardResultsSetPagination
     queryset = Post.objects.exclude(
-        status=Post.PostStatus.AWAITING_PAYMENT
+        status__in=[Post.PostStatus.AWAITING_PAYMENT, Post.PostStatus.SCHEDULED]
     ).select_related('user').order_by('-created_at')
