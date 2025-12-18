@@ -4,6 +4,7 @@ from django.contrib import admin, messages
 from django import forms
 from django.utils.html import format_html
 from django.utils import timezone
+from django.db import transaction  # Import transaction
 from datetime import timedelta
 import re
 
@@ -46,7 +47,6 @@ class PostAdminForm(forms.ModelForm):
     )
 
     # 2. Relative Scheduling Fields (Select Options)
-    # Hours: 0 to 10
     HOURS_CHOICES = [(i, f"{i} hours") for i in range(11)]
     schedule_delay_hours = forms.TypedChoiceField(
         choices=HOURS_CHOICES,
@@ -57,7 +57,6 @@ class PostAdminForm(forms.ModelForm):
         help_text="Select delay hours."
     )
 
-    # Minutes: 5 to 55 (5 min interval)
     MINUTES_CHOICES = [(i, f"{i} minutes") for i in range(5, 60, 5)]
     schedule_delay_minutes = forms.TypedChoiceField(
         choices=MINUTES_CHOICES,
@@ -93,12 +92,16 @@ class PostAdminForm(forms.ModelForm):
 def retry_failed_posts(modeladmin, request, queryset):
     count = 0
     for post in queryset:
-        if post.status not in [Post.PostStatus.POSTED, Post.PostStatus.PROCESSING]:
-            post.status = Post.PostStatus.PROCESSING
-            post.meta_api_error = None
-            post.save()
-            process_and_publish_post.delay(post.id)
-            count += 1
+        # Don't retry if already posted!
+        if post.status == Post.PostStatus.POSTED:
+            continue
+            
+        post.status = Post.PostStatus.PROCESSING
+        post.meta_api_error = None
+        post.save()
+        # Use on_commit to prevent race conditions
+        transaction.on_commit(lambda p=post.id: process_and_publish_post.delay(p))
+        count += 1
     
     if count > 0:
         modeladmin.message_user(request, f"Successfully queued {count} post(s) for retry.", messages.SUCCESS)
@@ -135,7 +138,6 @@ class PostAdmin(admin.ModelAdmin):
                 ('schedule_delay_hours', 'schedule_delay_minutes'),
             )
         }),
-        # Collapsed the Exact Time box as requested
         ('Advanced / Exact Time & System', {
             'classes': ('collapse',),
             'fields': ('scheduled_time', 'post_number', 'moderation_reason', 'meta_api_status', 'meta_api_error', 'instagram_media_id', 'created_at', 'posted_at')
@@ -179,7 +181,6 @@ class PostAdmin(admin.ModelAdmin):
         delay_hours = form.cleaned_data.get('schedule_delay_hours')
         delay_minutes = form.cleaned_data.get('schedule_delay_minutes')
 
-        # If dropdowns have values (integers)
         if delay_hours or delay_minutes:
             hours = delay_hours or 0
             minutes = delay_minutes or 0
@@ -191,17 +192,21 @@ class PostAdmin(admin.ModelAdmin):
             obj.status = Post.PostStatus.SCHEDULED
             super().save_model(request, obj, form, change)
             
-            process_and_publish_post.apply_async(args=[obj.id], eta=obj.scheduled_time)
+            # Use on_commit to ensure task only fires after DB commit
+            transaction.on_commit(lambda: process_and_publish_post.apply_async(args=[obj.id], eta=obj.scheduled_time))
             
             local_time_str = obj.scheduled_time.strftime('%Y-%m-%d %H:%M:%S')
             messages.success(request, f"Post #{obj.post_number} scheduled for {local_time_str} (Server Time).")
         
         else:
-            # Post Now if status is PROCESSING
+            # Post Now
             if obj.status == Post.PostStatus.PROCESSING or (is_new and obj.status != Post.PostStatus.SCHEDULED):
                 obj.status = Post.PostStatus.PROCESSING
                 super().save_model(request, obj, form, change)
-                process_and_publish_post.delay(obj.id)
+                
+                # FIX: Use on_commit to prevent duplicate/premature firing
+                transaction.on_commit(lambda: process_and_publish_post.delay(obj.id))
+                
                 messages.success(request, f"Post #{obj.post_number} processing now.")
             else:
                 super().save_model(request, obj, form, change)
