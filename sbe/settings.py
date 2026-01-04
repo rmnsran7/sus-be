@@ -3,6 +3,8 @@ from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -155,11 +157,9 @@ REST_FRAMEWORK = {
 }
 
 # --- CELERY CONFIGURATION ---
-# This is the URL of your message broker (the 'in-tray').
-CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
-
-# This is the backend where Celery stores the results of tasks.
-CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
+# Updated to use Upstash Redis URL from environment variables
+CELERY_BROKER_URL = config('REDIS_URL')
+CELERY_RESULT_BACKEND = config('REDIS_URL')
 
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'

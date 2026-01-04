@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.db import transaction
 from .models import Post, PostImage
 from .services.image_generator import create_post_image
-from .services import s3_uploader, instagram_uploader
+from .services import local_uploader, instagram_uploader
 
 @shared_task
 def process_and_publish_post(post_id, raw_content=None):
@@ -78,11 +78,11 @@ def process_and_publish_post(post_id, raw_content=None):
                 _fail_post(post_id, "Image generation failed")
                 return
 
-            print(f"Uploading image to S3 for Post #{post.post_number}...")
-            image_url = s3_uploader.upload_file_to_s3(image_file, file_type='png')
+            print(f"Uploading image locally for Post #{post.post_number}...")
+            image_url = local_uploader.upload_file_locally(image_file, file_type='png')
             
             if not image_url:
-                _fail_post(post_id, "S3 upload failed")
+                _fail_post(post_id, "Local upload failed")
                 return
 
             PostImage.objects.create(post_id=post_id, image_url=image_url, is_text_image=True)
