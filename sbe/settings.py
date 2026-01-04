@@ -14,7 +14,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 SECRET_KEY = 'django-insecure-&)pt3d)j$yj8kyu3!*v+0=+i%8nlft05r49n&n!^xst(fzs8pf'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = [
     '40.233.109.19',
@@ -76,7 +76,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://localhost:5173" 
+    "https://localhost:5173", 
     "https://127.0.0.1:5173", 
     "http://speakupsurrey-app.s3-website.us-east-2.amazonaws.com",
     'https://loudsurrey.online',
