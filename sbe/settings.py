@@ -17,6 +17,7 @@ SECRET_KEY = 'django-insecure-&)pt3d)j$yj8kyu3!*v+0=+i%8nlft05r49n&n!^xst(fzs8pf
 DEBUG = False
 
 ALLOWED_HOSTS = [
+    '40.233.109.19'
     '127.0.0.1',
     'localhost',
     'morphotic-squally-jericho.ngrok-free.dev',
