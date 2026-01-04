@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'apps.posts',
     'apps.moderation',
     'apps.payments',
+    'apps.reposter',
 ]
 
 # CORRECTED: Middleware order is crucial for CORS to function correctly.
