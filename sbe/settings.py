@@ -1,5 +1,6 @@
 from pathlib import Path
 from decouple import config
+import ssl # Required for Upstash SSL
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -160,6 +161,15 @@ REST_FRAMEWORK = {
 # Updated to use Upstash Redis URL from environment variables
 CELERY_BROKER_URL = config('REDIS_URL')
 CELERY_RESULT_BACKEND = config('REDIS_URL')
+
+# Added these for Upstash stability
+CELERY_BROKER_USE_SSL = {
+    'ssl_cert_reqs': ssl.CERT_NONE
+}
+CELERY_REDIS_BACKEND_USE_SSL = {
+    'ssl_cert_reqs': ssl.CERT_NONE
+}
+
 
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
