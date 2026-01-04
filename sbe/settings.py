@@ -159,8 +159,8 @@ REST_FRAMEWORK = {
 
 # --- CELERY CONFIGURATION ---
 # Updated to use Upstash Redis URL from environment variables
-CELERY_BROKER_URL = config('REDIS_URL')
-CELERY_RESULT_BACKEND = config('REDIS_URL')
+CELERY_BROKER_URL = config('REDIS_URL', default='rediss://default:AU9fAAIncDJiNDYzNThkOWY3YzY0NjI4ODc2YmZiMDRlOGEyNzNkOXAyMjAzMTk@golden-antelope-20319.upstash.io:6379/0?ssl_cert_reqs=none')
+CELERY_RESULT_BACKEND = config('REDIS_URL', default='rediss://default:AU9fAAIncDJiNDYzNThkOWY3YzY0NjI4ODc2YmZiMDRlOGEyNzNkOXAyMjAzMTk@golden-antelope-20319.upstash.io:6379/0?ssl_cert_reqs=none')
 
 # Added these for Upstash stability
 CELERY_BROKER_USE_SSL = {
