@@ -1,28 +1,29 @@
+from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from celery.result import AsyncResult
 from .tasks import repost_to_instagram_task
 
 class ReposterStartView(APIView):
+    # We remove the JSON restriction to allow HTML rendering
     def get(self, request):
         link = request.query_params.get('link')
         if not link:
-            return Response({"error": "Link parameter is required"}, status=400)
+            return render(request, 'reposter/error.html', {"error": "No link provided."})
         
-        # Start background task
+        # Start the background task
         task = repost_to_instagram_task.delay(link)
         
-        return Response({
+        # Render the interactive processing page, passing the task ID
+        return render(request, 'reposter/process.html', {
             "task_id": task.id,
-            "status_url": f"/api/reposter/status/{task.id}/"
+            "target_link": link
         })
 
 class ReposterStatusView(APIView):
     def get(self, request, task_id):
         task_result = AsyncResult(task_id)
-        result = {
-            "task_id": task_id,
-            "task_status": task_result.status,
-            "task_info": task_result.info,
-        }
-        return Response(result)
+        return Response({
+            "status": task_result.status,
+            "info": task_result.info if task_result.info else {"status": "Waiting..."}
+        })

@@ -115,6 +115,7 @@ TEMPLATES = [
     },
 ]
 
+
 WSGI_APPLICATION = 'sbe.wsgi.application'
 
 
